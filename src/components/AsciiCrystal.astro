@@ -1,0 +1,181 @@
+---
+import { renderCrystal } from "./ascii-crystal";
+import Drift from "./Drift.astro";
+---
+
+<div class="ascii-crystal">
+  <button type="button" data-ascii-crystal disabled aria-label="Spin the ASCII crystal" aria-describedby="crystal-instructions">
+    <span class="crystal-glyphs" aria-hidden="true">{renderCrystal()}</span>
+  </button>
+  <div class="crystal-caption mono">
+    <p id="crystal-instructions" class="crystal-keyboard">Use the arrow keys to rotate the crystal, or press Enter or Space to spin it.</p>
+    <button type="button" data-open-game aria-haspopup="dialog" aria-controls="drift" hidden>play low orbit</button>
+    <span class="crystal-keyboard" role="status" data-crystal-status></span>
+  </div>
+</div>
+
+<Drift />
+
+<style>
+  .ascii-crystal {
+    justify-self: end;
+    align-self: center;
+    width: min(100%, 18.5rem);
+    text-align: center;
+  }
+
+  [data-ascii-crystal] {
+    display: block;
+    width: 100%;
+    padding: 0.65rem 0;
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    border-radius: 0.35rem;
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: grab;
+  }
+
+  [data-ascii-crystal]:disabled { cursor: default; }
+  [data-ascii-crystal]:active { cursor: grabbing; }
+
+  .crystal-glyphs {
+    display: block;
+    width: max-content;
+    margin-inline: auto;
+    white-space: pre;
+    font-family: var(--mono-font);
+    font-weight: 400;
+    font-size: clamp(0.51rem, 1.07vw, 0.68rem);
+    line-height: 0.9;
+    font-variant-ligatures: none;
+  }
+
+  .crystal-caption {
+    display: grid;
+    place-items: center;
+    min-height: 44px;
+  }
+
+  [data-open-game] {
+    min-height: 44px;
+    padding-inline: 0.65rem;
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 0.25em;
+  }
+
+  [data-open-game]:hover { color: var(--ink); }
+
+  .crystal-keyboard {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 42rem) {
+    .ascii-crystal { justify-self: center; }
+  }
+</style>
+
+<script>
+  import { renderCrystal } from "./ascii-crystal";
+
+  const crystal = document.querySelector<HTMLButtonElement>("[data-ascii-crystal]")!;
+  const art = crystal.querySelector(".crystal-glyphs")!;
+  const gameOpener = document.querySelector<HTMLButtonElement>("[data-open-game]")!;
+  const status = document.querySelector("[data-crystal-status]")!;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let phase = .55;
+  let tilt = -.32;
+  let frame = 0;
+  let activations = 0;
+  let drag: { id: number; x: number; y: number } | null = null;
+  let dragged = false;
+
+  function draw() {
+    art.textContent = renderCrystal(phase, tilt);
+  }
+
+  function stopPulse() {
+    cancelAnimationFrame(frame);
+    frame = 0;
+  }
+
+  function sendPulse() {
+    stopPulse();
+    if (reducedMotion.matches) {
+      phase += 0.24;
+      draw();
+      return;
+    }
+
+    const origin = phase;
+    const pulseStart = performance.now();
+    function sweep(now: number) {
+      const progress = Math.min(1, (now - pulseStart) / 1000);
+      phase = origin + 0.95 * (1 - (1 - progress) ** 3);
+      draw();
+      frame = progress < 1 && !reducedMotion.matches ? requestAnimationFrame(sweep) : 0;
+    }
+    frame = requestAnimationFrame(sweep);
+  }
+
+  crystal.disabled = false;
+  if (!reducedMotion.matches) sendPulse();
+
+  crystal.addEventListener("pointerdown", (event) => {
+    if (!event.isPrimary || event.button !== 0) return;
+    dragged = false;
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    crystal.setPointerCapture(event.pointerId);
+  });
+
+  crystal.addEventListener("pointermove", (event) => {
+    if (drag?.id === event.pointerId) {
+      dragged ||= Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 5;
+      if (!dragged) return;
+    } else if (event.pointerType !== "mouse" || reducedMotion.matches) {
+      return;
+    }
+
+    stopPulse();
+    const rect = crystal.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+    phase = .55 + (x - .5) * 2.5;
+    tilt = (.5 - y) * 1.2;
+    draw();
+  });
+
+  crystal.addEventListener("lostpointercapture", () => { drag = null; });
+
+  crystal.addEventListener("click", (event) => {
+    if (dragged && event.detail !== 0) return;
+    sendPulse();
+    if (++activations === 3) {
+      gameOpener.hidden = false;
+      status.textContent = "Low Orbit unlocked. Tab to play.";
+    }
+  });
+
+  crystal.addEventListener("keydown", (event) => {
+    switch (event.key) {
+      case "ArrowLeft": phase += 0.09; break;
+      case "ArrowRight": phase -= 0.09; break;
+      case "ArrowUp": tilt = Math.min(1, tilt + 0.1); break;
+      case "ArrowDown": tilt = Math.max(-1, tilt - 0.1); break;
+      default: return;
+    }
+    event.preventDefault();
+    stopPulse();
+    draw();
+  });
+</script>

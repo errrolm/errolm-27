@@ -1,0 +1,23 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Arrow from "../components/Arrow.astro";
+import { posts, formatPostDate } from "../data/posts";
+---
+
+<Layout title="Posts" description="Thoughts and experiments by errolm.">
+  <header class="page-intro">
+    <h1>Posts</h1>
+    <p>Thoughts &amp; experiments.</p>
+  </header>
+  <ul class="link-list">
+    {posts.map((post) => (
+      <li>
+        <a class="row-link post-row" href={post.href}>
+          <span class="row-body"><strong>{post.title}</strong></span>
+          <time class="row-meta mono" datetime={post.dateTime}>{formatPostDate(post.date)}</time>
+          <Arrow />
+        </a>
+      </li>
+    ))}
+  </ul>
+</Layout>

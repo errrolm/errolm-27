@@ -1,0 +1,63 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Arrow from "../components/Arrow.astro";
+import AsciiCrystal from "../components/AsciiCrystal.astro";
+import { posts, formatPostDate } from "../data/posts";
+import { projects } from "../data/projects";
+
+const latestPost = posts[0];
+const nityam = projects[0];
+---
+<Layout>
+  <section class="hero" aria-labelledby="intro">
+    <div class="hero-copy">
+      <h1 id="intro">I build and<br /> <em>break ideas.</em></h1>
+      <p class="hero-roles mono">student <span aria-hidden="true">/</span> developer <span aria-hidden="true">/</span> CTFer</p>
+      <p class="hero-intro">I’m experimenting with hardware and software to understand how systems work under the hood.</p>
+    </div>
+
+    <AsciiCrystal />
+  </section>
+
+  <section class="highlights" aria-labelledby="highlights-title">
+    <h2 id="highlights-title" class="section-label">stuff i’ve been up to</h2>
+    <ul class="link-list highlights-list">
+      <li>
+        <a class="row-link" href={nityam.href}>
+          <span class="row-type mono">built</span>
+          <span class="row-body"><strong>{nityam.name}</strong><span>Policy workflow engine · 2nd place</span></span>
+          <Arrow direction="up-right" />
+        </a>
+      </li>
+      <li>
+        <a class="row-link" href="/posts/this-ones-for-the-archive/#technix">
+          <span class="row-type mono">CTF</span>
+          <span class="row-body"><strong>Technix CTF</strong><span>Team LCF · 2nd place in Wavin’ Flag</span></span>
+          <Arrow />
+        </a>
+      </li>
+      {latestPost && (
+        <li>
+          <a class="row-link" href={latestPost.href}>
+            <span class="row-type mono">wrote</span>
+            <span class="row-body"><strong>{latestPost.title}</strong><time datetime={latestPost.dateTime}>{formatPostDate(latestPost.date)}</time></span>
+            <Arrow />
+          </a>
+        </li>
+      )}
+    </ul>
+  </section>
+</Layout>
+
+<style>
+  @media (prefers-reduced-motion: no-preference) {
+    .hero-copy {
+      animation: arrive 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    @keyframes arrive {
+      from { opacity: 0.45; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  }
+</style>

@@ -1,0 +1,23 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Arrow from "../components/Arrow.astro";
+import { projects } from "../data/projects";
+---
+
+<Layout title="Projects" description="Projects built by errolm.">
+  <header class="page-intro">
+    <h1>Projects</h1>
+    <p>Things I’ve built.</p>
+  </header>
+  <ul class="link-list">
+    {projects.map(({ name, href, description, award }) => (
+      <li>
+        <a class="row-link" href={href}>
+          <span class="row-body"><strong>{name}</strong><span>{description}</span></span>
+          {award && <span class="row-meta mono">{award}</span>}
+          <Arrow direction="up-right" />
+        </a>
+      </li>
+    ))}
+  </ul>
+</Layout>

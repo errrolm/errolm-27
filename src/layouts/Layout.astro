@@ -1,0 +1,88 @@
+---
+import "../styles/global.css";
+import Arrow from "../components/Arrow.astro";
+
+interface Props {
+  title?: string;
+  description?: string;
+  type?: "website" | "article";
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description = "errolm — student, developer, CTFer. I build and break ideas.",
+  type = "website",
+  noindex = false,
+} = Astro.props;
+
+const pageTitle = title ? `${title} · errolm` : "errolm · I build and break ideas";
+const canonical = new URL(Astro.url.pathname, "https://errolm.vercel.app");
+const ogImage = new URL("/assets/thumbnail.png", canonical);
+const links = [
+  { href: "/projects/", name: "projects" },
+  { href: "/posts/", name: "posts" },
+  { href: "/contact/", name: "contact" },
+];
+const path = Astro.url.pathname.endsWith("/") ? Astro.url.pathname : `${Astro.url.pathname}/`;
+const social = [
+  { href: "https://github.com/errrolm", name: "GitHub" },
+  { href: "https://www.linkedin.com/in/errrolm/", name: "LinkedIn" },
+  { href: "https://x.com/errrolm", name: "X" },
+  { href: "https://youtube.com/@errolm", name: "YouTube" },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta name="author" content="ErrolM" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#101211" />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    {!noindex && <link rel="canonical" href={canonical.href} />}
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage.href} />
+    <meta property="og:url" content={canonical.href} />
+    <meta property="og:type" content={type} />
+    <meta property="og:site_name" content="errolm" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@errrolm" />
+    <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/assets/logo.png?v=2" />
+    <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin />
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="4cc07c41-0b92-4649-9c91-0f3f1d2b3c78"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header frame">
+      <a class="wordmark" href="/" aria-label="errolm home" aria-current={path === "/" ? "page" : undefined}>
+        <svg aria-hidden="true" width="40" height="34" viewBox="0 0 46 39" fill="none">
+          <path d="M4 34 C13 34 32 23 35 12 C38 1 28 1 23 10 C18 19 17 32 25 34 C32 36 38 31 42 26" pathLength="1" stroke="currentColor" stroke-width="3.8" stroke-linecap="round" />
+        </svg>
+      </a>
+      <div class="header-tools">
+        <nav aria-label="Main navigation" class="site-nav">
+          {links.map(({ href, name }) => (
+            <a href={href} aria-current={path === href ? "page" : path.startsWith(href) ? "location" : undefined}>{name}</a>
+          ))}
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="frame" tabindex="-1">
+      <slot />
+    </main>
+
+    <footer class="site-footer frame">
+      <a class="footer-home" href="/">errolm</a>
+      <nav aria-label="Social profiles">
+        {social.map(({ href, name }) => <a href={href}>{name}<Arrow direction="up-right" /></a>)}
+      </nav>
+    </footer>
+  </body>
+</html>

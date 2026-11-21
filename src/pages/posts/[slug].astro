@@ -1,0 +1,49 @@
+---
+import type { InferGetStaticPropsType } from "astro";
+import readingTime from "reading-time";
+import Layout from "../../layouts/Layout.astro";
+import Arrow from "../../components/Arrow.astro";
+import { posts, formatPostDate } from "../../data/posts";
+
+export function getStaticPaths() {
+  return posts.map((post) => ({ params: { slug: post.slug }, props: { post } }));
+}
+
+type Props = InferGetStaticPropsType<typeof getStaticPaths>;
+const { post } = Astro.props;
+const sources = import.meta.glob<string>("../../content/posts/*.mdx", { eager: true, query: "?raw", import: "default" });
+const reading = readingTime(sources[`../../content/posts/${post.slug}.mdx`]);
+const Content = post.entry.Content;
+---
+
+<Layout title={post.title} description={post.description} type="article">
+  <div id="reading-progress" class="reading-progress" aria-hidden="true"></div>
+  <article>
+    <a class="back-link" href="/posts/"><Arrow direction="left" /> All posts</a>
+    <header class="page-intro article-intro">
+      <h1>{post.title}</h1>
+      <div class="article-meta mono">
+        <time datetime={post.dateTime}>{formatPostDate(post.date, "long")}</time>
+        <span aria-hidden="true">/</span>
+        <span>{reading.text}</span>
+      </div>
+    </header>
+    <div class="article-content">
+      <Content />
+    </div>
+  </article>
+
+  <script>
+    const progress = document.getElementById("reading-progress");
+    if (progress) {
+      const update = () => {
+        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+        const fraction = scrollable > 0 ? window.scrollY / scrollable : 0;
+        progress.style.transform = `scaleX(${Math.max(0, Math.min(1, fraction))})`;
+      };
+      window.addEventListener("scroll", update, { passive: true });
+      window.addEventListener("resize", update);
+      update();
+    }
+  </script>
+</Layout>
