@@ -1,4 +1,5 @@
 type FlightState = "ready" | "flying" | "paused" | "crashed";
+const prizeMilestone = 8;
 type Spark = { x: number; y: number; vx: number; vy: number; life: number; color: string };
 
 const bestKey = "low-orbit-best";
@@ -66,7 +67,9 @@ export function mountLowOrbit(dialog: HTMLDialogElement, opener: HTMLButtonEleme
 
   const launch = dialog.querySelector<HTMLButtonElement>("[data-launch]")!;
   const pauseButton = dialog.querySelector<HTMLButtonElement>("[data-pause]")!;
+  const boostButton = dialog.querySelector<HTMLButtonElement>("[data-boost]")!;
   const menu = dialog.querySelector<HTMLElement>(".flight-menu")!;
+  const prize = menu.querySelector<HTMLElement>("[data-prize]")!;
   const result = dialog.querySelector<HTMLElement>("[data-result]")!;
   const scoreLabel = dialog.querySelector<HTMLElement>("[data-score]")!;
   const chainLabel = dialog.querySelector<HTMLElement>("[data-chain]")!;
@@ -90,6 +93,10 @@ export function mountLowOrbit(dialog: HTMLDialogElement, opener: HTMLButtonEleme
   let velocity = 0;
   let distance = 0;
   let flightTime = 0;
+  let fuel = 2;
+  let boostTime = 0;
+  let smashed = 0;
+  let brokenHazard = -1;
   let nextHazard = 0;
   let nextRing = firstRing;
   let points = 0;
@@ -112,6 +119,9 @@ export function mountLowOrbit(dialog: HTMLDialogElement, opener: HTMLButtonEleme
   }
 
   function updateHud() {
+    boostButton.disabled = fuel < 2 || boostTime > 0;
+    const boostLabel = boostTime > 0 ? "Boosting" : fuel === 2 ? "Boost" : `Boost ${fuel}/2`;
+    if (boostButton.textContent !== boostLabel) boostButton.textContent = boostLabel;
     const scoreText = format(score());
     const chainText = String(chain);
     const shieldText = charge === 3 ? "Ready" : charge + "/3";
@@ -185,6 +195,14 @@ export function mountLowOrbit(dialog: HTMLDialogElement, opener: HTMLButtonEleme
       ctx.globalAlpha = 1;
     }
     ctx.rotate(Math.atan2(velocity, 340));
+    if (boostTime > 0) {
+      ctx.fillStyle = "#b9ded6";
+      ctx.beginPath();
+      ctx.moveTo(-7, -5);
+      ctx.lineTo(-48, 0);
+      ctx.lineTo(-7, 5);
+      ctx.fill();
+    }
     ctx.fillStyle = colors.shield;
     ctx.beginPath();
     ctx.moveTo(-10, -3);
@@ -244,7 +262,7 @@ export function mountLowOrbit(dialog: HTMLDialogElement, opener: HTMLButtonEleme
     drawWall(-1);
     drawWall(1);
     for (let index = Math.max(0, nextHazard - 1); firstHazard + index * hazardSpacing < distance + width + 24; index++) {
-      drawHazard(hazardAt(index, flightTime));
+      if (index !== brokenHazard) drawHazard(hazardAt(index, flightTime));
     }
     for (let world = nextRing; world < distance + width + 40; world += ringSpacing) {
       drawRing(world, ringY(world));
@@ -274,9 +292,11 @@ export function mountLowOrbit(dialog: HTMLDialogElement, opener: HTMLButtonEleme
     cancelAnimationFrame(frame);
     clearInput();
     pauseButton.hidden = true;
+    boostButton.hidden = true;
     result.textContent = message;
     launch.textContent = action;
     menu.hidden = false;
+    prize.hidden = nextState !== "crashed" || nextHazard < prizeMilestone;
     draw();
     launch.focus();
   }
@@ -293,6 +313,7 @@ export function mountLowOrbit(dialog: HTMLDialogElement, opener: HTMLButtonEleme
       format(total) + " points",
       longestChain + " best chain",
       bonusCollected + " gold",
+      smashed + " smashed",
       record ? "New best" : "Best " + format(best),
     ].join(" · "), "Fly again");
   }
@@ -302,6 +323,7 @@ export function mountLowOrbit(dialog: HTMLDialogElement, opener: HTMLButtonEleme
     const bonus = bonusY(nextRing);
     const gold = bonus !== null && Math.abs(y - bonus) <= bonusRadius;
     if (gold || Math.abs(y - target) <= ringRadius) {
+      fuel = Math.min(2, fuel + 1);
       chain++;
       longestChain = Math.max(longestChain, chain);
       if (gold) bonusCollected++;
@@ -326,7 +348,9 @@ export function mountLowOrbit(dialog: HTMLDialogElement, opener: HTMLButtonEleme
     const dt = Math.min((now - last) / 1000, .035);
     last = now;
     flightTime += dt;
-    const speed = 175 + Math.min(119, distance / 55);
+    const boosting = boostTime > 0;
+    boostTime = Math.max(0, boostTime - dt);
+    const speed = (175 + Math.min(119, distance / 55)) * (boosting ? 1.65 : 1);
     distance += speed * dt;
     velocity = Math.max(-173, Math.min(173, velocity + (thrusting() ? -425 : 300) * dt));
     y += velocity * dt;
@@ -345,7 +369,14 @@ export function mountLowOrbit(dialog: HTMLDialogElement, opener: HTMLButtonEleme
     const wallHit = Math.abs(y - wall.center) + shipRadius >= wall.gap;
     if (dx > mineRadius + shipRadius) nextHazard++;
 
-    if ((wallHit || obstacleHit) && recovery === 0) {
+    if (boosting && obstacleHit && !wallHit) {
+      brokenHazard = nextHazard++;
+      smashed++;
+      points += 400;
+      burst(hazard.x - distance, y, hazardColor);
+      callout = "Smashed +400";
+      calloutTime = 1;
+    } else if ((wallHit || obstacleHit) && recovery === 0) {
       if (charge === 3) {
         charge = 0;
         chain = 0;
@@ -378,6 +409,9 @@ export function mountLowOrbit(dialog: HTMLDialogElement, opener: HTMLButtonEleme
   }
 
   function reset() {
+    fuel = 2;
+    boostTime = smashed = 0;
+    brokenHazard = -1;
     clearInput();
     y = 200;
     velocity = distance = points = chain = charge = recovery = calloutTime = 0;
@@ -390,9 +424,11 @@ export function mountLowOrbit(dialog: HTMLDialogElement, opener: HTMLButtonEleme
   function fly() {
     if (state === "flying") return;
     if (state !== "paused") reset();
+    prize.hidden = true;
     state = "flying";
     menu.hidden = true;
     pauseButton.hidden = false;
+    boostButton.hidden = false;
     canvas.focus();
     last = performance.now();
     frame = requestAnimationFrame(tick);
@@ -406,12 +442,22 @@ export function mountLowOrbit(dialog: HTMLDialogElement, opener: HTMLButtonEleme
     if (dialog.open) return;
     reset();
     dialog.showModal();
-    showMenu("ready", "Best score: " + format(best), "Launch");
+    showMenu("ready", "Best " + format(best), "Launch");
   });
   launch.addEventListener("click", fly);
   pauseButton.addEventListener("click", pause);
+  function boost() {
+    if (state !== "flying" || fuel < 2 || boostTime > 0) return;
+    fuel = 0;
+    boostTime = .65;
+    canvas.focus({preventScroll:true});
+    updateHud();
+  }
+  boostButton.addEventListener("pointerdown", event => event.preventDefault());
+  boostButton.addEventListener("click", boost);
   dialog.addEventListener("keydown", (event) => {
     if (event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.code === "KeyB" && !event.repeat) boost();
     if (event.code === "KeyP" && (state === "flying" || state === "paused")) {
       event.preventDefault();
       if (!event.repeat) state === "flying" ? pause() : fly();

@@ -1,7 +1,11 @@
+---
+import FlightPrize from "./FlightPrize.astro";
+---
 <dialog id="drift" aria-labelledby="drift-title">
   <header>
     <h2 id="drift-title">Low Orbit</h2>
     <div class="actions">
+      <button type="button" data-boost hidden>Boost</button>
       <button type="button" data-pause hidden>Pause</button>
       <form method="dialog"><button>Close</button></form>
     </div>
@@ -16,13 +20,14 @@
     <div class="viewport">
       <canvas width="720" height="400" tabindex="0" aria-label="Flight controls" aria-describedby="drift-controls"></canvas>
       <div class="flight-menu">
+        <FlightPrize title="Prize unlocked" />
         <p data-result role="status">Best score: 0</p>
         <button type="button" data-launch>Launch</button>
       </div>
     </div>
   </div>
 
-  <p id="drift-controls">Hold Space, ↑, or the flight screen to climb. Release to dive. Dodge mines and fly through moving gates. Chain 3 rings for a shield. Gold rings score 2.5×.</p>
+  <p id="drift-controls">Hold Space, ↑, or the screen to climb. Release to dive. Press B or tap Boost to smash an obstacle for 400 points. Two rings refill your boost. Three in a row earn a shield.</p>
 </dialog>
 
 <style>
@@ -76,6 +81,8 @@
     text-align: center;
   }
   .flight-menu[hidden] { display: none; }
+  .viewport:has([data-prize]:not([hidden])) canvas { display:none; }
+  .flight-menu:has([data-prize]:not([hidden])) { position:static; padding-bottom:1rem; }
   .flight-menu p { margin: 0; font-size: clamp(.78rem, 2.9vw, 1rem); color: #edf1e5; }
   [data-launch] { background: #d6e7b6; color: #172016; font-weight: 650; padding-inline: 1.15rem; }
   [data-launch]:hover { background: #eef5dc; }

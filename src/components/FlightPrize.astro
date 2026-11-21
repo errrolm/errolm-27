@@ -1,0 +1,21 @@
+---
+interface Props {
+  title?: string;
+}
+
+const { title = "Flight complete" } = Astro.props;
+---
+<section data-prize hidden>
+  <h3>{title}</h3>
+  <a href="https://media1.tenor.com/m/yCD0nPHINg0AAAAd/never-gonna-give-you-up-rick-astley.gif" target="_blank" rel="noopener noreferrer">
+    <img src="/flight-prize.svg" width="164" height="164" alt="Scan to claim your prize" />
+    Claim your prize ↗
+  </a>
+</section>
+<style>
+  section { text-align:center; padding:1rem; }
+  section[hidden] { display:none; }
+  h3 { margin:0 0 .8rem; font-size:1.4rem; }
+  a { display:inline-grid; justify-items:center; gap:.65rem; color:var(--accent); }
+  img { width:min(164px,48vw); height:auto; display:block; }
+</style>
