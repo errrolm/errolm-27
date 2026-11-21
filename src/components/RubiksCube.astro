@@ -1,0 +1,133 @@
+---
+import Drift from "./Drift.astro";
+import GravityShot from "./GravityShot.astro";
+
+const faces = [
+  {axis:"z", sign:1, rotation:"", ink:"+++", color:"#a1bdad"},
+  {axis:"z", sign:-1, rotation:"rotateY(180deg)", ink:"ooo", color:"#c6ac83"},
+  {axis:"x", sign:1, rotation:"rotateY(90deg)", ink:"///", color:"#86a4b7"},
+  {axis:"x", sign:-1, rotation:"rotateY(-90deg)", ink:":::", color:"#b297af"},
+  {axis:"y", sign:-1, rotation:"rotateX(90deg)", ink:"###", color:"#ded6b2"},
+  {axis:"y", sign:1, rotation:"rotateX(-90deg)", ink:"===", color:"#c29886"},
+];
+const cells=[-1,0,1];
+---
+<div class="toy">
+  <button class="stage" type="button" aria-label="Rubik’s cube. Drag or use arrow keys to rotate. Click or press Enter to twist a layer.">
+    <span class="cube" aria-hidden="true">
+      {faces.flatMap(({axis,sign,rotation,ink,color})=>cells.flatMap(a=>cells.map(b=>{
+        const x=axis==="x"?sign:a, y=axis==="y"?sign:axis==="x"?a:b, z=axis==="z"?sign:b;
+        const pose=`translate3d(calc(${x} * var(--tile-size)), calc(${y} * var(--tile-size)), calc(${z} * var(--tile-size))) ${rotation} translateZ(calc(var(--tile-size) / 2))`;
+        return <span class="tile" data-x={x} data-y={y} data-z={z} style={{transform:pose,color}}>{'+'+'---'+'+\n|'+ink.trim()+'|\n|'+ink.trim()+'|\n+---+'}</span>;
+      })))}
+    </span>
+  </button>
+  <div class="game-picker">
+    <button type="button" class="secret" hidden aria-expanded="false" aria-controls="game-options">Play secret game</button>
+    <div class="games" id="game-options" hidden>
+      <button data-open-gravity aria-haspopup="dialog" aria-controls="gravity">Gravity Shot</button>
+      <button data-open-game aria-haspopup="dialog" aria-controls="drift">Low Orbit</button>
+    </div>
+  </div>
+  <span class="sr" role="status"></span>
+</div>
+<GravityShot/>
+<Drift/>
+<style>
+  .toy { width:min(100%,23rem); justify-self:center; text-align:center; container-type:inline-size; }
+  .stage {
+    --tile-size:clamp(2.5rem,24cqw,4.4rem);
+    position:relative;
+    z-index:0;
+    display:block;
+    width:100%;
+    height:calc(var(--tile-size) * 5.45);
+    overflow:visible;
+    padding:0;
+    border:0;
+    background:transparent;
+    perspective:900px;
+    cursor:grab;
+    touch-action:none;
+    user-select:none;
+  }
+  .stage:active { cursor:grabbing; }
+  .cube,.tile { position:absolute; left:50%; top:50%; }
+  .cube { transform-style:preserve-3d; transform:rotateX(-24deg) rotateY(-34deg); }
+  .tile { width:var(--tile-size); height:var(--tile-size); margin:calc(var(--tile-size) / -2); display:grid; place-content:center; white-space:pre; font:500 calc(var(--tile-size) * .3)/.71 var(--mono-font); letter-spacing:0; background:color-mix(in srgb,currentColor 10%,var(--background)); box-shadow:inset 0 0 0 1px var(--background); backface-visibility:hidden; }
+  .game-picker { position:relative; z-index:1; min-height:44px; margin-top:.375rem; }
+  .secret,.games button { min-height:44px; font:.77rem var(--mono-font); cursor:pointer; }
+  .secret { background:transparent; border:0; color:var(--ink); padding:0 .75rem; }
+  .secret::after { content:""; display:inline-block; width:.44em; height:.44em; border:solid var(--accent); border-width:0 1px 1px 0; transform:translateY(-.2em) rotate(45deg); margin-left:.85em; }
+  .secret[aria-expanded="true"]::after { transform:rotate(225deg); }
+  .games { position:absolute; inset:calc(100% + .25rem) 0 auto; display:flex; justify-content:center; gap:.5rem; }
+  .games button { border:1px solid var(--accent-line); border-radius:4px; padding:0 .8rem; background:var(--background); color:var(--accent); }
+  .games button:hover,.secret:hover { color:var(--ink); text-decoration:underline; text-underline-offset:.25em; }
+  .toy [hidden] { display:none; }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+</style>
+<script>
+  const stage=document.querySelector<HTMLButtonElement>(".stage")!;
+  const cube=stage.querySelector<HTMLElement>(".cube")!;
+  const tiles=[...cube.querySelectorAll<HTMLElement>(".tile")].map(element=>({
+    element,
+    homePose:element.style.transform,
+    rotation:new DOMMatrix(),
+  }));
+  const secret=document.querySelector<HTMLButtonElement>(".secret")!;
+  const options=document.querySelector<HTMLElement>("#game-options")!;
+  secret.addEventListener("click",()=>{
+    options.hidden=!options.hidden;
+    secret.setAttribute("aria-expanded",String(!options.hidden));
+  });
+  let yaw=-34, pitch=-24, turns=0;
+  let drag:{id:number;x:number;y:number;yaw:number;pitch:number;moved:boolean}|null=null;
+  let suppressClick=false;
+  function view() {cube.style.transform=`rotateX(${pitch}deg) rotateY(${yaw}deg)`;}
+  function twist() {
+    const axis=(["y","x","z"] as const)[turns%3];
+    const side=axis==="y"?-1:1;
+    const rotation=new DOMMatrix().rotate(axis==="x"?90:0,axis==="y"?90:0,axis==="z"?90:0);
+    for(const sticker of tiles){
+      const tile=sticker.element;
+      if(Number(tile.dataset[axis])!==side)continue;
+      const visiblePose=getComputedStyle(tile).transform;
+      for(const animation of tile.getAnimations()) animation.finish();
+      // Keep the original relative lengths so twisted tiles resize with the cube.
+      sticker.rotation=rotation.multiply(sticker.rotation);
+      const next=`${sticker.rotation.toString()} ${sticker.homePose}`;
+      const point=new DOMPoint(Number(tile.dataset.x),Number(tile.dataset.y),Number(tile.dataset.z)).matrixTransform(rotation);
+      for(const key of ["x","y","z"] as const)tile.dataset[key]=String(Math.round(point[key]));
+      tile.style.transform=next;
+      if(!matchMedia("(prefers-reduced-motion: reduce)").matches)
+        tile.animate([{transform:visiblePose},{transform:next}],{duration:310,easing:"cubic-bezier(.2,.7,.2,1)"});
+    }
+    if(++turns===3){
+      secret.hidden=false;
+      document.querySelector<HTMLElement>(".toy .sr")!.textContent="Secret games unlocked. Tab to Play secret game.";
+    }
+  }
+  stage.addEventListener("click",e=>{if(!suppressClick||e.detail===0)twist(); suppressClick=false;});
+  stage.addEventListener("pointerdown",e=>{
+    if(drag||e.button!==0)return;
+    suppressClick=false; drag={id:e.pointerId,x:e.clientX,y:e.clientY,yaw,pitch,moved:false};
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener("pointermove",e=>{
+    if(!drag||drag.id!==e.pointerId)return;
+    const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+    drag.moved ||= Math.hypot(dx,dy)>4;
+    if(drag.moved){yaw=drag.yaw+dx*.65; pitch=drag.pitch-dy*.65; view();}
+  });
+  stage.addEventListener("lostpointercapture",()=>{suppressClick=drag?.moved??false; drag=null;});
+  stage.addEventListener("keydown",e=>{
+    switch(e.key){
+      case "ArrowLeft": yaw-=12;break;
+      case "ArrowRight": yaw+=12;break;
+      case "ArrowUp": pitch-=12;break;
+      case "ArrowDown": pitch+=12;break;
+      default:return;
+    }
+    e.preventDefault(); view();
+  });
+</script>

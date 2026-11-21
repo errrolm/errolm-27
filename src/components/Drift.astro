@@ -1,104 +1,91 @@
 <dialog id="drift" aria-labelledby="drift-title">
-  <header><h2 id="drift-title">low orbit</h2><form method="dialog"><button>close</button></form></header>
-  <canvas width="600" height="360" aria-label="Side-scrolling flight game. Avoid the cave walls and fly through rings."></canvas>
-  <p>Hold space or touch the screen to climb. Let go to dive.</p>
-  <footer><output aria-live="polite">Ready to fly?</output><button type="button" data-launch>launch</button></footer>
+  <header>
+    <h2 id="drift-title">Low Orbit</h2>
+    <div class="actions">
+      <button type="button" data-pause hidden>Pause</button>
+      <form method="dialog"><button>Close</button></form>
+    </div>
+  </header>
+
+  <div class="flight">
+    <div class="telemetry" aria-hidden="true">
+      <span>Score <b data-score>0</b></span>
+      <span>Chain <b data-chain>0</b></span>
+      <span>Shield <b data-shield>0/3</b></span>
+    </div>
+    <div class="viewport">
+      <canvas width="720" height="400" tabindex="0" aria-label="Flight controls" aria-describedby="drift-controls"></canvas>
+      <div class="flight-menu">
+        <p data-result role="status">Best score: 0</p>
+        <button type="button" data-launch>Launch</button>
+      </div>
+    </div>
+  </div>
+
+  <p id="drift-controls">Hold Space, ↑, or the flight screen to climb. Release to dive. Dodge mines and fly through moving gates. Chain 3 rings for a shield. Gold rings score 2.5×.</p>
 </dialog>
+
 <style>
-  dialog { width:min(36rem,94vw); max-height:94svh; padding:1rem; border:1px solid var(--accent-line); border-radius:10px; background:var(--background); color:var(--ink); }
-  dialog::backdrop { background:rgb(5 7 5 / 85%); }
-  header,footer { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
-  h2 { font-size:1.4rem; letter-spacing:-.04em; }
-  canvas { display:block; width:100%; height:auto; background:#101612; touch-action:none; }
-  button { min-height:44px; border:0; background:transparent; color:var(--accent); }
-  footer button { border:1px solid var(--accent-line); padding-inline:1rem; border-radius:4px; }
-  p,output { font:400 .8rem/1.5 var(--mono-font); color:var(--muted); }
-  p { margin:.8rem 0; }
+  dialog {
+    width: min(48rem, 96vw);
+    max-height: 94svh;
+    padding: clamp(.75rem, 2.5vw, 1.25rem);
+    border: 1px solid var(--accent-line);
+    border-radius: 12px;
+    background: var(--background);
+    color: var(--ink);
+  }
+  dialog::backdrop { background: rgb(5 7 5 / 86%); }
+  header, .actions, .telemetry { display: flex; align-items: center; justify-content: space-between; }
+  header { gap: .75rem; margin-bottom: .65rem; }
+  .actions { gap: .35rem; }
+  h2 { margin: 0; font-size: clamp(1.3rem, 4vw, 1.85rem); letter-spacing: -.035em; }
+  button {
+    min-height: 44px;
+    padding-inline: .75rem;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent-line); }
+  button:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  [hidden] { display: none; }
+  .flight { border: 1px solid var(--accent-line); border-radius: 7px; overflow: hidden; }
+  .telemetry {
+    padding: .6rem clamp(.45rem, 2vw, .9rem);
+    gap: .35rem;
+    background: #151c17;
+    color: #a9b9ad;
+    font: 400 clamp(.65rem, 2.7vw, .8rem)/1.35 var(--mono-font);
+    font-variant-numeric: tabular-nums;
+  }
+  .telemetry b { color: #ecf2de; font-weight: 600; }
+  .viewport { position: relative; }
+  canvas { display: block; width: 100%; height: auto; background: #0c110e; touch-action: none; }
+  .flight-menu {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: .6rem;
+    padding: .6rem;
+    background: rgb(10 15 12 / 78%);
+    text-align: center;
+  }
+  .flight-menu[hidden] { display: none; }
+  .flight-menu p { margin: 0; font-size: clamp(.78rem, 2.9vw, 1rem); color: #edf1e5; }
+  [data-launch] { background: #d6e7b6; color: #172016; font-weight: 650; padding-inline: 1.15rem; }
+  [data-launch]:hover { background: #eef5dc; }
+  #drift-controls { margin: .75rem 0 0; font-size: .85rem; line-height: 1.45; color: var(--muted); }
 </style>
+
 <script>
-  const game = document.querySelector<HTMLDialogElement>("#drift")!;
-  const canvas = game.querySelector("canvas")!;
-  const ctx = canvas.getContext("2d")!;
-  const launch = game.querySelector<HTMLButtonElement>("[data-launch]")!;
-  const status = game.querySelector("output")!;
-  const opener = document.querySelector<HTMLButtonElement>("[data-open-game]")!;
-  const shipX = 105;
-  let y = 180, velocity = 0, distance = 0, rings = 0, nextRing = 310, best = 0;
-  let running = false, thrust = false, frame = 0, last = 0;
-  function center(x: number) {
-    return 180 + 51 * Math.sin(x / 175) + 24 * Math.sin(x / 81);
-  }
-  function clearance(x: number) { return 104 - 22 * Math.min(1, x / 4000) + 8 * Math.cos(x / 120); }
-  function draw() {
-    ctx.fillStyle = "#101612";
-    ctx.fillRect(0, 0, 600, 360);
-    ctx.fillStyle = "#6a8073";
-    for (let i = 0; i < 70; i++) {
-      const x = ((i * 89 - distance * .24) % 600 + 600) % 600;
-      ctx.fillRect(x, (i * 71) % 360, 1.5, 1.5);
-    }
-    for (const side of [-1, 1]) {
-      const edge = side < 0 ? 0 : 360;
-      ctx.beginPath();
-      ctx.moveTo(0, edge);
-      for (let x = 0; x <= 600; x += 4) {
-        const world = distance + x;
-        ctx.lineTo(x, center(world) + side * clearance(world));
-      }
-      ctx.lineTo(600, edge);
-      ctx.closePath();
-      ctx.fillStyle = "#23312a"; ctx.fill();
-      ctx.strokeStyle = "#829d8b"; ctx.stroke();
-    }
-    for (let world = nextRing; world < distance + 620; world += 310) {
-      ctx.beginPath();
-      ctx.ellipse(world - distance, center(world), 8, 19, 0, 0, Math.PI * 2);
-      ctx.strokeStyle = "#d1dcb2"; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1;
-    }
-    ctx.save(); ctx.translate(shipX,y); ctx.rotate(Math.atan(velocity / 380));
-    ctx.fillStyle = "#91b798"; ctx.beginPath(); ctx.moveTo(-8,-3); ctx.lineTo(thrust ? -25 : -16,0); ctx.lineTo(-8,3); ctx.fill();
-    ctx.fillStyle = "#eef2df"; ctx.beginPath(); ctx.moveTo(13,0); ctx.lineTo(-10,-7); ctx.lineTo(-6,0); ctx.lineTo(-10,7); ctx.closePath(); ctx.fill(); ctx.restore();
-    ctx.fillStyle = "#e3ebdd"; ctx.font = "15px monospace";
-    ctx.fillText(Math.floor(distance / 10) + " m   /   " + rings + " rings", 14, 24);
-  }
-  function tick(now: number) {
-    if (!running) return;
-    const dt = Math.min((now - last) / 1000, .035); last = now;
-    distance += (145 + Math.min(80, distance / 60)) * dt;
-    velocity = Math.max(-180, Math.min(180, velocity + (thrust ? -360 : 285) * dt));
-    y += velocity * dt;
-    const world = distance + shipX;
-    if (world >= nextRing) {
-      if (Math.abs(y - center(nextRing)) < 21) rings++;
-      nextRing += 310;
-    }
-    draw();
-    if (Math.abs(y - center(world)) + 6 >= clearance(world)) {
-      running = false; thrust = false;
-      best = Math.max(best, Math.floor(distance / 10));
-      status.textContent = "crashed at " + Math.floor(distance / 10) + " m · best " + best + " m";
-      launch.hidden = false; launch.textContent = "fly again"; launch.focus();
-      return;
-    }
-    frame = requestAnimationFrame(tick);
-  }
-  function reset() {
-    distance = 0; velocity = 0; rings = 0; nextRing = 310; y = center(shipX); thrust = false; draw();
-  }
-  opener.addEventListener("click", () => {
-    reset(); launch.hidden = false; launch.textContent = "launch"; status.textContent = "Ready to fly?";
-    game.showModal(); launch.focus();
-  });
-  launch.addEventListener("click", () => {
-    reset(); running = true; launch.hidden = true; status.textContent = "in flight"; canvas.tabIndex = 0; canvas.focus();
-    last = performance.now(); frame = requestAnimationFrame(tick);
-  });
-  game.addEventListener("keydown", e => {
-    if (running && e.code === "Space") { e.preventDefault(); thrust = true; }
-  });
-  window.addEventListener("keyup", e => { if (e.code === "Space") thrust = false; });
-  window.addEventListener("blur", () => { thrust = false; });
-  canvas.addEventListener("pointerdown", e => { if (running) { canvas.setPointerCapture(e.pointerId); thrust = true; } });
-  canvas.addEventListener("lostpointercapture", () => { thrust = false; });
-  game.addEventListener("close", () => { running = false; thrust = false; cancelAnimationFrame(frame); });
+  import { mountLowOrbit } from "./low-orbit";
+
+  const dialog = document.querySelector<HTMLDialogElement>("#drift");
+  const opener = document.querySelector<HTMLButtonElement>("[data-open-game]");
+  if (dialog && opener) mountLowOrbit(dialog, opener);
 </script>
